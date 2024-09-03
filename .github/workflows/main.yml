@@ -47,11 +47,16 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Decode and add SSH key
+        run: |
+          echo "${{ secrets.EC2_SSH_KEY }}" | base64 --decode > /tmp/id_rsa
+          chmod 600 /tmp/id_rsa
+
       - name: Deploy Docker Image to EC2
         run: |
-          PUBLIC_IP="52.4.69.114" # Update this IP if needed
+          PUBLIC_IP="52.4.69.114"
           echo "Deploying to EC2 instance at $PUBLIC_IP"
-          ssh -o StrictHostKeyChecking=no -i ${{ secrets.EC2_KEY_PAIR_PATH }} ec2-user@$PUBLIC_IP << 'EOF'
+          ssh -o StrictHostKeyChecking=no -i /tmp/id_rsa ec2-user@$PUBLIC_IP << 'EOF'
             sudo docker pull ${{ secrets.DOCKER_USERNAME }}/api:${{ github.sha }}
             sudo docker stop api || true
             sudo docker rm api || true
@@ -60,7 +65,7 @@ jobs:
 
       - name: Verify API
         run: |
-          PUBLIC_IP="52.4.69.114" # Update this IP if needed
+          PUBLIC_IP="52.4.69.114"
           RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://$PUBLIC_IP:8080)
           if [ "$RESPONSE" -ne 200 ]; then
             exit 1
